@@ -9,21 +9,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Use prebuilt Android SDK (skip license)
         run: |
-          sudo apt update && sudo apt install -y openjdk-17-jdk python3-pip git zip unzip
-          pip3 install buildozer==1.5.0 cython==0.29.36
-
-      - name: Force accept SDK licenses
-        run: |
-          echo "yes" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          # 下载预编译好的SDK（包含30.0.3 build-tools，无预览版）
+          wget https://github.com/osforscience/android-sdk/releases/download/2023-04-12/android-sdk-linux.tar.gz -O sdk.tar.gz
           mkdir -p ~/.buildozer/android/platform/
+          tar -xzf sdk.tar.gz -C ~/.buildozer/android/platform/
+          mv ~/.buildozer/android/platform/android-sdk-linux ~/.buildozer/android/platform/android-sdk
+
+          # 下载稳定版NDK r23c
           wget https://dl.google.com/android/repository/android-ndk-r23c-linux.zip -O ndk.zip
-          unzip ndk.zip -d ~/.buildozer/android/platform/
+          unzip -q ndk.zip -d ~/.buildozer/android/platform/
           mv ~/.buildozer/android/platform/android-ndk-r23c ~/.buildozer/android/platform/android-ndk
 
-      - name: Clean old cache
-        run: rm -rf ~/.buildozer/android/platform/android-sdk/build-tools
+      - name: Install Buildozer
+        run: |
+          sudo apt update && sudo apt install -y openjdk-17-jdk python3-pip
+          pip3 install buildozer==1.5.0 cython==0.29.36
+
+      - name: Force Buildozer use local SDK
+        run: |
+          echo "android.sdk_path = /home/runner/.buildozer/android/platform/android-sdk" >> buildozer.spec
+          echo "android.ndk_path = /home/runner/.buildozer/android/platform/android-ndk" >> buildozer.spec
+          echo "android.build_tools = 30.0.3" >> buildozer.spec
+          echo "android.api = 30" >> buildozer.spec
 
       - name: Build APK
         run: buildozer -v android debug
