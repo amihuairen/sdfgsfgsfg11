@@ -23,19 +23,24 @@ jobs:
             libncurses5-dev libncursesw5-dev libtinfo6 \
             cmake libffi-dev libssl-dev automake
 
+      # 核心新增：自动同意所有Android SDK协议，跳过手动确认
+      - name: Accept Android SDK licenses
+        run: |
+          mkdir -p $ANDROID_HOME/licenses || true
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" >> $ANDROID_HOME/licenses/android-sdk-license
+
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip setuptools wheel
           python3 -m pip install cython==0.29.36 buildozer==1.5.0 kivy==2.3.1
 
-      - name: Initialize Buildozer (if not exists)
+      - name: Clean Buildozer cache
         run: |
-          if [ ! -f buildozer.spec ]; then buildozer init; fi
-
-      - name: Build APK (clean cache first)
-        run: |
-          # 核心修复：删除旧的build-tools缓存，强制下载34.0.0版本
           rm -rf ~/.buildozer/android/platform/android-sdk/build-tools
+
+      - name: Build APK
+        run: |
           buildozer -v android debug
 
       - name: Upload APK artifact
