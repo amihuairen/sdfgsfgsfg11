@@ -20,3 +20,6 @@ android.ndk = 23c
 android.archs = arm64-v8a, armeabi-v7a
 android.add_android_manifest_uses_permission = android.permission.WRITE_EXTERNAL_STORAGE
 android.build_tools = 30.0.3
+# 强制指定SDK下载源，避开预览版
+android.sdk_path = /home/runner/.buildozer/android/platform/android-sdk
+android.ndk_path = /home/runner/.buildozer/android/platform/android-ndk-r23c
