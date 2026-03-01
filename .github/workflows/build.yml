@@ -26,16 +26,16 @@ jobs:
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip setuptools wheel
-          # 指定兼容版本，避免最新版bug
           python3 -m pip install cython==0.29.36 buildozer==1.5.0 kivy==2.3.1
 
-      - name: Initialize Buildozer (如果没有spec文件会生成，已有则跳过)
+      - name: Initialize Buildozer (if not exists)
         run: |
           if [ ! -f buildozer.spec ]; then buildozer init; fi
 
-      - name: Build APK
+      - name: Build APK (clean cache first)
         run: |
-          # 关键：跳过用户权限检查，直接打包
+          # 核心修复：删除旧的build-tools缓存，强制下载34.0.0版本
+          rm -rf ~/.buildozer/android/platform/android-sdk/build-tools
           buildozer -v android debug
 
       - name: Upload APK artifact
