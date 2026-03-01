@@ -6,11 +6,31 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04          # 关键！强制用稳定版系统
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build APK with Buildozer（稳版）
-        uses: digreatbrian/buildozer-action@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip openjdk-17-jdk python3 python3-dev libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev automake
+
+      - name: Install Buildozer
+        run: |
+          python3 -m pip install --upgrade pip setuptools wheel cython==0.29.21 buildozer
+
+      - name: Accept SDK licenses & install build-tools
+        run: |
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" "platforms;android-33" || true
+
+      - name: Build APK
+        run: |
+          buildozer -v android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          command: buildozer -v android debug
+          name: douyin-extractor-apk
+          path: bin/*.apk
