@@ -9,33 +9,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use prebuilt Android SDK (skip license & cert)
+      - name: Install base dependencies
         run: |
-          # 跳过证书验证，下载国内镜像SDK
-          wget --no-check-certificate https://mirror.coggle.club/android-sdk/android-sdk-linux-30.zip -O sdk.zip
-          mkdir -p ~/.buildozer/android/platform/
-          unzip -q sdk.zip -d ~/.buildozer/android/platform/
-          mv ~/.buildozer/android/platform/android-sdk-linux ~/.buildozer/android/platform/android-sdk
-
-          # 跳过证书验证，下载NDK
-          wget --no-check-certificate https://mirror.coggle.club/android-ndk/android-ndk-r23c-linux.zip -O ndk.zip
-          unzip -q ndk.zip -d ~/.buildozer/android/platform/
-          mv ~/.buildozer/android/platform/android-ndk-r23c ~/.buildozer/android/platform/android-ndk
+          sudo apt update && sudo apt install -y openjdk-17-jdk python3-pip git zip unzip libtool pkg-config zlib1g-dev libncurses5-dev cmake libffi-dev libssl-dev automake
 
       - name: Install Buildozer
-        run: |
-          sudo apt update && sudo apt install -y openjdk-17-jdk python3-pip
-          pip3 install buildozer==1.5.0 cython==0.29.36
+        run: pip3 install buildozer==1.5.0 cython==0.29.36 kivy==2.3.1
 
-      - name: Force Buildozer use local SDK
+      - name: Pre-config Buildozer to use stable versions
         run: |
-          echo "android.sdk_path = /home/runner/.buildozer/android/platform/android-sdk" >> buildozer.spec
-          echo "android.ndk_path = /home/runner/.buildozer/android/platform/android-ndk" >> buildozer.spec
-          echo "android.build_tools = 30.0.3" >> buildozer.spec
-          echo "android.api = 30" >> buildozer.spec
+          # 写入强制稳定版本配置到spec
+          cat >> buildozer.spec << EOF
+          [android]
+          android.api = 30
+          android.minapi = 21
+          android.ndk = 23c
+          android.build_tools = 30.0.3
+          android.archs = arm64-v8a, armeabi-v7a
+          android.permissions = INTERNET,VIBRATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,ACCESS_EXTERNAL_STORAGE
+          EOF
 
-      - name: Build APK
-        run: buildozer -v android debug
+      - name: Force accept all Android licenses (critical fix)
+        run: |
+          # 提前创建许可证文件，跳过交互确认
+          mkdir -p ~/.android/
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.android/repositories.cfg
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" >> ~/.android/repositories.cfg
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.android/repositories.cfg
+          # 强制同意协议，即使有弹窗也自动选yes
+          yes | python3 -m buildozer android update || true
+
+      - name: Build APK (final attempt)
+        run: buildozer -v android debug --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
