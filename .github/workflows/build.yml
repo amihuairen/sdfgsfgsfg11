@@ -1,49 +1,34 @@
 name: Build Android APK
-
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git zip unzip openjdk-17-jdk \
-            python3 python3-dev python3-pip \
-            libtool pkg-config zlib1g-dev \
-            libncurses5-dev libncursesw5-dev libtinfo6 \
-            cmake libffi-dev libssl-dev automake
+          sudo apt update && sudo apt install -y openjdk-17-jdk python3-pip git zip unzip
+          pip3 install buildozer==1.5.0 cython==0.29.36
 
-      # 核心新增：自动同意所有Android SDK协议，跳过手动确认
-      - name: Accept Android SDK licenses
+      - name: Force accept SDK licenses
         run: |
-          mkdir -p $ANDROID_HOME/licenses || true
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" >> $ANDROID_HOME/licenses/android-sdk-license
+          echo "yes" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          mkdir -p ~/.buildozer/android/platform/
+          wget https://dl.google.com/android/repository/android-ndk-r23c-linux.zip -O ndk.zip
+          unzip ndk.zip -d ~/.buildozer/android/platform/
+          mv ~/.buildozer/android/platform/android-ndk-r23c ~/.buildozer/android/platform/android-ndk
 
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip setuptools wheel
-          python3 -m pip install cython==0.29.36 buildozer==1.5.0 kivy==2.3.1
-
-      - name: Clean Buildozer cache
-        run: |
-          rm -rf ~/.buildozer/android/platform/android-sdk/build-tools
+      - name: Clean old cache
+        run: rm -rf ~/.buildozer/android/platform/android-sdk/build-tools
 
       - name: Build APK
-        run: |
-          buildozer -v android debug
+        run: buildozer -v android debug
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: douyin-extractor-apk
