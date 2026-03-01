@@ -16,19 +16,6 @@ jobs:
       - name: Install Buildozer
         run: pip3 install buildozer==1.5.0 cython==0.29.36 kivy==2.3.1
 
-      - name: Pre-config Buildozer to use stable versions
-        run: |
-          # 写入强制稳定版本配置到spec
-          cat >> buildozer.spec << EOF
-          [android]
-          android.api = 30
-          android.minapi = 21
-          android.ndk = 23c
-          android.build_tools = 30.0.3
-          android.archs = arm64-v8a, armeabi-v7a
-          android.permissions = INTERNET,VIBRATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,ACCESS_EXTERNAL_STORAGE
-          EOF
-
       - name: Force accept all Android licenses (critical fix)
         run: |
           # 提前创建许可证文件，跳过交互确认
