@@ -23,3 +23,4 @@ android.ndk = 25b
 android.archs = arm64-v8a, armeabi-v7a
 # 允许写入外部存储
 android.add_android_manifest_uses_permission = android.permission.WRITE_EXTERNAL_STORAGE
+android.build_tools = 34.0.0
