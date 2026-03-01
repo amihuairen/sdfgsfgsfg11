@@ -7,21 +7,40 @@ from kivy.uix.button import Button
 from kivy.uix.progressbar import ProgressBar
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
-from kivy.clock import Clock
+from kivy.clock import Clock, mainthread
 from kivy.properties import StringProperty
 from kivy.storage.jsonstore import JsonStore
-from plyer import vibrator
+from plyer import vibrator, filechooser  # 新增filechooser用于文件保存
+from plyer.utils import platform  # 新增判断平台（手机/电脑）
 import random
 import string
 import time
 import threading
-import openpyxl  # 用于导出Excel
+import openpyxl
+import os
 
+# 核心修复：获取手机端合法的存储路径（适配Android/iOS/电脑）
+def get_storage_path():
+    if platform == 'android':
+        # Android 手机的外部存储路径（可读写）
+        from android.permissions import request_permissions, Permission
+        # 申请存储权限
+        request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
+        return os.path.join(os.environ.get('EXTERNAL_STORAGE'), 'DouyinExtractor')
+    else:
+        # 电脑端用当前目录
+        return os.path.join(os.getcwd(), 'DouyinExtractor')
+
+# 确保存储目录存在
+STORAGE_PATH = get_storage_path()
+if not os.path.exists(STORAGE_PATH):
+    os.makedirs(STORAGE_PATH)
 
 class ActivationScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.store = JsonStore('app_data.json')
+        # 修复：用手机端合法路径存储激活码文件
+        self.store = JsonStore(os.path.join(STORAGE_PATH, 'app_data.json'))
 
         # 如果是全新安装，生成随机激活码
         if not self.store.exists('required_code'):
@@ -56,12 +75,11 @@ class ActivationScreen(Screen):
             self.store.put('activated', value=True)
             self.manager.current = 'main'
         else:
-            # 可以加个错误提示，这里先简单弹窗
+            # 错误提示弹窗
             popup = Popup(title='错误',
                           content=Label(text='激活码错误或已使用！'),
                           size_hint=(0.7, 0.3))
             popup.open()
-
 
 class MainScreen(Screen):
     def __init__(self, **kwargs):
@@ -86,7 +104,6 @@ class MainScreen(Screen):
             scan_screen.video_link = link
             self.manager.current = 'scan'
             scan_screen.start_process()
-
 
 class ScanScreen(Screen):
     log_text = StringProperty('')
@@ -126,17 +143,25 @@ class ScanScreen(Screen):
     def fake_extract(self):
         self.append_log(f"正在解析视频链接: {self.video_link}")
         time.sleep(1.2)
-        vibrator.vibrate(0.2)
+        try:
+            vibrator.vibrate(0.2)
+        except:
+            # 部分手机不支持振动，捕获异常避免闪退
+            pass
 
         self.append_log("模拟调用抖音接口获取评论...")
         steps = ['获取评论批次', '扫描手机号格式', '全局去重处理']
 
         for i in range(100):
-            Clock.schedule_once(lambda dt, val=i + 1: setattr(self.progress_bar, 'value', val), 0)
+            # 修复：用mainthread装饰器确保UI操作在主线程
+            self.update_progress(i + 1)
             step = random.choice(steps)
             self.append_log(f"{step}... ({i + 1}/100)")
             if random.random() < 0.12:
-                vibrator.vibrate(0.08)
+                try:
+                    vibrator.vibrate(0.08)
+                except:
+                    pass
             time.sleep(random.uniform(0.08, 0.25))
 
         # 生成假手机号（全局去重）
@@ -147,46 +172,60 @@ class ScanScreen(Screen):
         self.append_log(f"共扫描评论: {self.total_comments} 条")
         self.append_log(f"提取到唯一手机号: {len(self.phone_set)} 个")
         self.append_log("扫描完成！准备导出Excel...")
-        vibrator.vibrate(0.6)
+        try:
+            vibrator.vibrate(0.6)
+        except:
+            pass
 
-        Clock.schedule_once(lambda dt: self.enable_done(), 0)
+        self.enable_done()
 
+    # 修复：用mainthread装饰器，确保UI更新在主线程
+    @mainthread
     def update_progress(self, value):
         self.progress_bar.value = value
 
+    @mainthread
     def append_log(self, text):
-        Clock.schedule_once(lambda dt: self._append_log(text), 0)
-
-    def _append_log(self, text):
         self.log_label.text += text + '\n'
 
+    @mainthread
     def enable_done(self):
         self.done_button.disabled = False
 
     def done(self, instance):
-        # 导出Excel
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Douyin_Phones"
-        ws.cell(row=1, column=1).value = "手机号"
-        ws.cell(row=1, column=2).value = "提取时间"
-        ws.cell(row=1, column=3).value = "来源视频"
+        try:
+            # 修复：用手机端合法路径保存Excel
+            excel_path = os.path.join(STORAGE_PATH, f'extracted_phones_{int(time.time())}.xlsx')
+            # 导出Excel
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Douyin_Phones"
+            ws.cell(row=1, column=1).value = "手机号"
+            ws.cell(row=1, column=2).value = "提取时间"
+            ws.cell(row=1, column=3).value = "来源视频"
 
-        for i, phone in enumerate(self.phone_set, start=2):
-            ws.cell(row=i, column=1).value = phone
-            ws.cell(row=i, column=2).value = time.strftime("%Y-%m-%d %H:%M:%S")
-            ws.cell(row=i, column=3).value = self.video_link[:50] + "..." if len(
-                self.video_link) > 50 else self.video_link
+            for i, phone in enumerate(self.phone_set, start=2):
+                ws.cell(row=i, column=1).value = phone
+                ws.cell(row=i, column=2).value = time.strftime("%Y-%m-%d %H:%M:%S")
+                ws.cell(row=i, column=3).value = self.video_link[:50] + "..." if len(
+                    self.video_link) > 50 else self.video_link
 
-        wb.save('extracted_phones.xlsx')
+            wb.save(excel_path)
 
-        popup = Popup(title='导出成功！',
-                      content=Label(text='已生成 extracted_phones.xlsx\n可在文件管理器中查看'),
-                      size_hint=(0.85, 0.4))
-        popup.open()
+            # 提示文件保存路径（手机端能找到）
+            popup = Popup(title='导出成功！',
+                          content=Label(text=f'已生成Excel文件：\n{excel_path}\n\nAndroid手机可在「文件管理/内部存储/DouyinExtractor」查看'),
+                          size_hint=(0.85, 0.5))
+            popup.open()
+
+        except Exception as e:
+            # 捕获导出异常，避免闪退
+            popup = Popup(title='导出失败',
+                          content=Label(text=f'错误原因：{str(e)}'),
+                          size_hint=(0.85, 0.4))
+            popup.open()
 
         self.manager.current = 'main'
-
 
 class FakeExtractorApp(App):
     def build(self):
@@ -195,10 +234,10 @@ class FakeExtractorApp(App):
         sm.add_widget(MainScreen(name='main'))
         sm.add_widget(ScanScreen(name='scan'))
 
-        store = JsonStore('app_data.json')
+        # 修复：用手机端合法路径读取激活状态
+        store = JsonStore(os.path.join(STORAGE_PATH, 'app_data.json'))
         sm.current = 'main' if store.exists('activated') else 'activation'
         return sm
-
 
 if __name__ == '__main__':
     FakeExtractorApp().run()
