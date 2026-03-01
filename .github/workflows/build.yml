@@ -1,17 +1,36 @@
-name: Build Douyin Extractor APK
+# 工作流名称
+name: Build Android APK
 
+# 触发条件：push 或 pull request 到 main 分支时运行
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # 用稳定的 Ubuntu 22.04 系统（避免 latest 版本兼容性问题）
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      # 第一步：拉取你的 GitHub 仓库代码
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      # 第二步：用现成的 Buildozer Action 打包（自动处理所有依赖）
       - name: Build APK with Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
         with:
+          # 执行的打包命令（和本地一样）
           command: buildozer -v android debug
+          # 使用稳定版 Buildozer
           buildozer_version: stable
+
+      # 第三步：上传打包好的 APK 作为产物（方便下载）
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # 产物名称（随便起，方便识别）
+          name: douyin-extractor-apk
+          # APK 文件的路径（Buildozer 默认生成在 bin 目录下）
+          path: bin/*.apk
