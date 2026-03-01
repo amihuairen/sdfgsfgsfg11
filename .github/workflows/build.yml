@@ -1,7 +1,5 @@
-# 工作流名称
 name: Build Android APK
 
-# 触发条件：push 或 pull request 到 main 分支时运行
 on:
   push:
     branches: [ main ]
@@ -10,27 +8,38 @@ on:
 
 jobs:
   build:
-    # 用稳定的 Ubuntu 22.04 系统（避免 latest 版本兼容性问题）
     runs-on: ubuntu-22.04
     steps:
-      # 第一步：拉取你的 GitHub 仓库代码
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 第二步：用现成的 Buildozer Action 打包（自动处理所有依赖）
-      - name: Build APK with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        with:
-          # 执行的打包命令（和本地一样）
-          command: buildozer -v android debug
-          # 使用稳定版 Buildozer
-          buildozer_version: stable
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip openjdk-17-jdk \
+            python3 python3-dev python3-pip \
+            libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo6 \
+            cmake libffi-dev libssl-dev automake
 
-      # 第三步：上传打包好的 APK 作为产物（方便下载）
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip setuptools wheel
+          # 指定兼容版本，避免最新版bug
+          python3 -m pip install cython==0.29.36 buildozer==1.5.0 kivy==2.3.1
+
+      - name: Initialize Buildozer (如果没有spec文件会生成，已有则跳过)
+        run: |
+          if [ ! -f buildozer.spec ]; then buildozer init; fi
+
+      - name: Build APK
+        run: |
+          # 关键：跳过用户权限检查，直接打包
+          buildozer -v android debug
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          # 产物名称（随便起，方便识别）
           name: douyin-extractor-apk
-          # APK 文件的路径（Buildozer 默认生成在 bin 目录下）
           path: bin/*.apk
