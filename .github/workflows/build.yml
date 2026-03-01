@@ -6,12 +6,11 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build APK with Buildozer (官方稳版)
-        uses: ArtemSBulgakov/buildozer-action@v1
+      - name: Build APK with Buildozer（稳版）
+        uses: digreatbrian/buildozer-action@v2
         with:
           command: buildozer -v android debug
-          buildozer_version: stable
